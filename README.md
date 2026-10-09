@@ -1,14 +1,15 @@
 # AI Career Advisor
 
-An AI-powered web app that analyzes a user's profile and gives personalized career guidance. Built with React on the frontend and Node.js/Express with MongoDB on the backend, with role-based access for users, admins and super admins.
+CareerAI is an AI-powered career guidance platform built to help users discover suitable career paths based on their education, skills, interests, and career goals.
 
 ## Features
 
-- User registration and login with JWT-based authentication
-- AI-generated career analysis and advice
-- Saved analysis history per user
-- Dashboard to view past analyses
-- Admin dashboard for managing users and activity
+- AI Career Recommendations — Personalized career suggestions based on user profiles.
+- Skill Gap Analysis — Identifies skills users may need to develop for their target careers.
+- Learning Roadmap — Provides structured steps for career development and learning progress tracking.
+- User Authentication — Secure registration and login using JWT and password hashing.
+- Analysis History — View and manage previous career analyses.
+- PDF Export — Export career analysis reports.
 - Super admin role with extra privileges
 - Protected routes with auth, admin and super admin middleware
 - Automatic handling of expired sessions on the client (auth interceptor)
