@@ -20,9 +20,28 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // Google users ka password nahi hota, is liye sirf local users ke liye required
     password: {
       type: String,
-      required: true,
+      required: function () {
+        return this.authProvider !== "google";
+      },
+    },
+
+    // ==============================
+    // LOGIN PROVIDER (GOOGLE)
+    // ==============================
+
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+
+    authProvider: {
+      type: String,
+      enum: ["local", "google"],
+      default: "local",
     },
 
     // ==============================

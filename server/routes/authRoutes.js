@@ -2,11 +2,14 @@ const express = require("express");
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { OAuth2Client } = require("google-auth-library");
 
 const authMiddleware = require("../middleware/authMiddleware");
 const adminMiddleware = require("../middleware/adminMiddleware");
 
 const router = express.Router();
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // ==========================================
 // HELPERS
@@ -213,6 +216,14 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    // Google account (password nahi hota)
+    if (!user.password) {
+      return res.status(400).json({
+        message:
+          "This account uses Google sign-in. Please sign in with Google.",
+      });
+    }
+
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
 
     if (!isPasswordCorrect) {
@@ -256,6 +267,113 @@ router.post("/login", async (req, res) => {
 
     return res.status(500).json({
       message: "Login failed",
+    });
+  }
+});
+
+// ==========================================
+// GOOGLE LOGIN
+// ==========================================
+
+router.post("/google", async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      console.error("GOOGLE LOGIN ERROR: GOOGLE_CLIENT_ID is not set");
+
+      return res.status(500).json({
+        message: "Google sign-in is not configured.",
+      });
+    }
+
+    if (!credential || typeof credential !== "string") {
+      return res.status(400).json({
+        message: "Google credential is required.",
+      });
+    }
+
+    // Google ka token verify (signature + audience check)
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+
+    if (!payload || !payload.email || payload.email_verified !== true) {
+      return res.status(401).json({
+        message: "Your Google email is not verified.",
+      });
+    }
+
+    const normalizedEmail = String(payload.email).trim().toLowerCase();
+
+    let user = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    if (!user) {
+      const googleName = String(payload.name || "").trim();
+
+      const safeName =
+        googleName.length >= 2 && googleName.length <= 100
+          ? googleName
+          : normalizedEmail.split("@")[0].slice(0, 100);
+
+      user = await User.create({
+        name: safeName,
+        email: normalizedEmail,
+        googleId: payload.sub,
+        authProvider: "google",
+        role: "user",
+        isSuperAdmin: false,
+      });
+    } else if (!user.googleId) {
+      // Pehle se email/password wala account hai, Google se link karo
+      user.googleId = payload.sub;
+      await user.save();
+    } else if (user.googleId !== payload.sub) {
+      return res.status(401).json({
+        message: "Google sign-in failed.",
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        role: user.role,
+        isSuperAdmin: user.isSuperAdmin || false,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d",
+      },
+    );
+
+    return res.status(200).json({
+      message: "Login successful",
+
+      token,
+
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        education: user.education,
+        gpa: user.gpa,
+        skills: user.skills,
+        interests: user.interests,
+        careerGoal: user.careerGoal,
+        role: user.role,
+        isSuperAdmin: user.isSuperAdmin || false,
+      },
+    });
+  } catch (error) {
+    console.error("GOOGLE LOGIN ERROR:", error.message);
+
+    return res.status(401).json({
+      message: "Google sign-in failed.",
     });
   }
 });
@@ -433,6 +551,13 @@ router.put("/change-password", authMiddleware, async (req, res) => {
     if (!user) {
       return res.status(404).json({
         message: "User not found.",
+      });
+    }
+
+    // Google account (password nahi hota)
+    if (!user.password) {
+      return res.status(400).json({
+        message: "This account uses Google sign-in and has no password.",
       });
     }
 
