@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Sparkles } from "lucide-react";
+import { GoogleLogin } from "@react-oauth/google";
 import axios from "axios";
 import { useState } from "react";
 
@@ -41,16 +42,42 @@ function Login() {
       // JWT browser ke localStorage mein save karna
       localStorage.setItem("token", token);
 
-      console.log("Login successful:", response.data);
-
       // Login ke baad Dashboard par jana
       navigate("/dashboard");
     } catch (error) {
-      console.log("Login error:", error);
-
       // Backend ka error message show karna
       setError(
         error.response?.data?.message || "Login failed. Please try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Google login function
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError("");
+    setLoading(true);
+
+    try {
+      // Google ka credential backend ko bhejna (backend verify karega)
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/auth/google`,
+        {
+          credential: credentialResponse.credential,
+        },
+      );
+
+      // Backend se apna JWT token lena
+      const token = response.data.token;
+
+      localStorage.setItem("token", token);
+
+      navigate("/dashboard");
+    } catch (error) {
+      setError(
+        error.response?.data?.message ||
+          "Google sign-in failed. Please try again.",
       );
     } finally {
       setLoading(false);
@@ -113,6 +140,29 @@ function Login() {
             {loading ? "Signing In..." : "Sign In"}
           </button>
         </form>
+
+        {/* Google sign-in */}
+
+        <p
+          style={{
+            textAlign: "center",
+            margin: "18px 0",
+            opacity: 0.6,
+            fontSize: "13px",
+          }}
+        >
+          or
+        </p>
+
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={() => setError("Google sign-in failed. Please try again.")}
+            theme="filled_black"
+            text="continue_with"
+            shape="rectangular"
+          />
+        </div>
 
         <p className="auth-footer">
           Don't have an account? <Link to="/register">Create account</Link>
